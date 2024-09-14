@@ -18,16 +18,16 @@ ui <- fluidPage(
   ## Body ####
   mainPanel(
     splitLayout(
-      fileInput('file', "Upload file", multiple = TRUE), 
+      fileInput('file', "Upload file", multiple = TRUE, accept = ".csv"), 
       shinyFeedback::useShinyFeedback(), 
-      actionButton("verify", "Verify"), 
-      actionButton("reload", "Reload")
+      actionButton("verify", "Verify Files", icon = icon('square-check')), 
+      actionButton("reload", "Reload Page", icon = icon('refresh'))
     ),
     splitLayout(downloadButton("file_template_download_1", "Download data_1 template file"),
                 downloadButton("file_template_download_2", "Download data_2 template file")
     ),
     hr(),
-    dataTableOutput("uploaded_data")
+    uiOutput("uploaded_data")
   )
 )
 
@@ -131,12 +131,12 @@ server <- function(input, output, session) {
       px <- px %>% bind_rows(temp)
     }
     
-    write.csv(px, "Bulk Upload.csv", row.names = FALSE)
+    write.csv(px, "Bulk_Upload.csv", row.names = FALSE)
   })
   
   ### Bulk upload verify ####
   observeEvent(input$verify, {
-    df <- read.csv("Bulk Upload.csv", header = TRUE)
+    df <- read.csv("Bulk_Upload.csv", header = TRUE)
     
     if("Data 1" %in% df$filetype){
       tryCatch(data_1_upload(), error = function(e) TRUE)
@@ -156,8 +156,12 @@ server <- function(input, output, session) {
       shinyFeedback::feedbackSuccess("file", !check, "Successfully uploaded")
     }
     ### render data table #####
-    output$uploaded_data <- renderDT(error_store[-1,], filter = "top", 
-                                     selection = 'none', rownames = FALSE)
+    output$uploaded_data <- renderUI({
+      fluidRow(
+        h3('Upload Status'),
+        renderDT(error_store[-1,], filter = "top", rownames = FALSE)
+      )
+    })
   })
   
   
@@ -165,8 +169,21 @@ server <- function(input, output, session) {
   ## Individual reactive ####
   ### Data 1 reactive ####
   data_1_upload <- reactive({
-    df <- read.csv("Bulk Upload.csv", header = TRUE)
+    df <- read.csv("Bulk_Upload.csv", header = TRUE)
     df <- df %>% filter(filetype == "Data 1")
+    
+    if(tools::file_ext(df$filelink[1]) != 'csv'){
+      error_store_temp <- data.frame(
+        filename = df$filename[1],
+        file_type = df$filetype[1],
+        comment = df$filecomment[1], 
+        verify_status = 'Failure', 
+        error = "Invalid Data 1 file format. Upload .csv file"
+      )
+      error_store <<- error_store %>% bind_rows(error_store_temp)
+      req(tools::file_ext(df$filelink[1]) == 'csv')
+    } 
+    
     df_dat <- read.csv(df$filelink[1], header = TRUE)
     
     col_names <- c("A", "B", "C")
@@ -197,8 +214,21 @@ server <- function(input, output, session) {
   
   ### Data 2 reactive ####
   data_2_upload <- reactive({
-    df <- read.csv("Bulk Upload.csv", header = TRUE)
+    df <- read.csv("Bulk_Upload.csv", header = TRUE)
     df <- df %>% filter(filetype == "Data 2")
+    
+    if(tools::file_ext(df$filelink[1]) != 'csv'){
+      error_store_temp <- data.frame(
+        filename = df$filename[1],
+        file_type = df$filetype[1],
+        comment = df$filecomment[1], 
+        verify_status = 'Failure', 
+        error = "Invalid Data 2 file format. Upload .csv file"
+      )
+      error_store <<- error_store %>% bind_rows(error_store_temp)
+      req(tools::file_ext(df$filelink[1]) == 'csv')
+    } 
+    
     df_dat <- read.csv(df$filelink[1], header = TRUE)
     
     col_names <- c("A", "D", "E")
