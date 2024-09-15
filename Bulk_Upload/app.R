@@ -1,6 +1,7 @@
 library(shiny)
 library(dplyr)
 library(DT)
+library(bslib)
 
 error_store <<- data.frame(
   filename = c(''),
@@ -10,24 +11,113 @@ error_store <<- data.frame(
   error = c('')
 )
 
+my_theme <- bs_theme(bootswatch = "darkly",
+                     version = 5,
+                     success = "#86C7ED",
+                     "table-color" = "#86C7ED",
+                     base_font = font_google("Lato"),
+                     heading_font = font_face(family = "Open Sauce Sans",
+                                              src = "url('../OpenSauceSans-Regular.ttf') format('truetype')")
+)
+
+# Add custom CSS to change the DataTable font color
+my_theme <- bs_add_rules(my_theme, "
+  /* Body text */
+  table.dataTable tbody tr {
+    color: #2384fa;  /* Color for table body text */
+  }
+
+  /* Header text */
+  table.dataTable thead th {
+    color: #f0f2f5;  /* Color for table header */
+  }
+
+  /* Pagination links */
+  .dataTables_paginate span a {
+    color: #0363ff !important;  /* Color for pagination links */
+  }
+
+  /* Pagination button for current page */
+  .paginate_button.current {
+    background-color: #f0f2f5 !important;  /* Background color for current page number */
+    color: #ffffff !important;  /* Font color for current page number */
+  }
+
+  /* Pagination buttons (Previous, Next) */
+  .paginate_button {
+    color: #039aff !important;  /* Font color for Previous and Next buttons */
+  }
+
+  /* Info text (e.g., 'Showing 1 to X of Y entries') */
+  .dataTables_info {
+    color: #039aff;  /* Color for info text */
+  }
+
+  /* Show entries label */
+  .dataTables_length label {
+    color: #039aff;  /* Color for 'Show entries' label */
+  }
+
+  /* Entries dropdown */
+  .dataTables_length select {
+    color: #039aff;  /* Color for dropdown */
+  }
+
+  /* Search label */
+  .dataTables_filter label {
+    color: #039aff;  /* Color for 'Search' label */
+  }
+
+  /* Search input text */
+  .dataTables_filter input {
+    color: #ff6347;  /* Color for search input text */
+  }
+
+  /* Pagination and 'Showing X of Y entries' container */
+  div.dataTables_wrapper div.dataTables_paginate,
+  div.dataTables_wrapper div.dataTables_info {
+    color: #039aff;  /* Color for all pagination-related elements */
+  }
+
+  /* Custom styles for status columns */
+  .status-success {
+    color: green !important;
+  }
+
+  .status-failure {
+    color: red !important;
+  }
+")
+
 # UI ####
-ui <- fluidPage(
-  
+ui <- page_fluid(
+  ## Github link ####
+  gitlink::ribbon_css("https://github.com/Soumyadipta2020/Bulk_Upload_and_validation-RShiny", 
+                      position = "right", border_color = "black", 
+                      font_color = "black", fade = TRUE),
+  ## BS Theme ####
+  theme = my_theme,
   ## Bulk Upload ####
   titlePanel("Bulk Upload & Validation"),
   ## Body ####
   mainPanel(
-    splitLayout(
-      fileInput('file', "Upload file", multiple = TRUE, accept = ".csv"), 
-      shinyFeedback::useShinyFeedback(), 
-      actionButton("verify", "Verify Files", icon = icon('square-check')), 
-      actionButton("reload", "Reload Page", icon = icon('refresh'))
-    ),
-    splitLayout(downloadButton("file_template_download_1", "Download data_1 template file"),
-                downloadButton("file_template_download_2", "Download data_2 template file")
-    ),
-    hr(),
-    uiOutput("uploaded_data")
+    page_fillable(
+      card(fill = TRUE, full_screen = TRUE, 
+           splitLayout(
+             fileInput('file', "Upload file", multiple = TRUE, accept = ".csv"), 
+             shinyFeedback::useShinyFeedback(), 
+             actionButton("verify", "Verify Files", icon = icon('square-check')), 
+             actionButton("reload", "Reload Page", icon = icon('refresh'))
+           ),
+           splitLayout(downloadButton("file_template_download_1", "Download Data 1 template"),
+                       downloadButton("file_template_download_2", "Download Data 2 template")
+           )
+      ),
+      hr(),
+      card(fill = TRUE, 
+           uiOutput("uploaded_data")
+      )
+    )
   )
 )
 
@@ -159,7 +249,34 @@ server <- function(input, output, session) {
     output$uploaded_data <- renderUI({
       fluidRow(
         h3('Upload Status'),
-        renderDT(error_store[-1,], filter = "top", rownames = FALSE)
+        card(fill = TRUE, full_screen = TRUE,
+          renderDT({
+            error_store_class <- error_store[-1,] %>%
+              mutate(class = case_when(
+                verify_status == 'Success' ~ 'status-success',
+                verify_status == 'Failure' ~ 'status-failure',
+                TRUE ~ ''
+              ))
+            
+            datatable(error_store_class, 
+                      rownames = FALSE, 
+                      filter = "top", 
+                      escape = FALSE, 
+                      callback = JS(
+                        "table.on('draw', function() {
+                    table.rows().nodes().each(function(row) {
+                      var verifyStatus = $(row).find('td:eq(3)').text(); // Adjust column index if needed
+                      if (verifyStatus === 'Success') {
+                        $(row).addClass('status-success');
+                      } else if (verifyStatus === 'Failure') {
+                        $(row).addClass('status-failure');
+                      }
+                    });
+                  });"
+                      )
+            )
+          })
+        )
       )
     })
   })
