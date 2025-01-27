@@ -2,6 +2,7 @@ library(shiny)
 library(dplyr)
 library(DT)
 library(bslib)
+library(shinyjs)
 
 error_store <<- data.frame(
   filename = c(""),
@@ -111,7 +112,7 @@ ui <- page_fluid(
         splitLayout(
           fileInput("file", "Upload file", multiple = TRUE, accept = ".csv"),
           shinyFeedback::useShinyFeedback(),
-          actionButton("verify", "Verify Files", icon = icon("square-check")),
+          # actionButton("verify", "Verify Files", icon = icon("square-check")),
           actionButton("reload", "Reload Page", icon = icon("refresh"))
         ),
         splitLayout(
@@ -209,10 +210,10 @@ server <- function(input, output, session) {
     }
   })
 
-  ### Store details ####
+  ## Store details & verification ####
   observeEvent(input$submit_data, {
     removeModal()
-
+    ### Storing details ####
     temp <- data.frame(
       filelink = c(""),
       filetype = c(""),
@@ -231,10 +232,8 @@ server <- function(input, output, session) {
     }
 
     write.csv(px, "Bulk_Upload.csv", row.names = FALSE)
-  })
 
-  ### Bulk upload verify ####
-  observeEvent(input$verify, {
+    ### Verifications #####
     df <- read.csv("Bulk_Upload.csv", header = TRUE)
 
     if ("Data 1" %in% df$filetype) {
@@ -254,6 +253,7 @@ server <- function(input, output, session) {
       shinyFeedback::hideFeedback("file")
       shinyFeedback::feedbackSuccess("file", !check, "Successfully uploaded")
     }
+
     ### render data table #####
     output$uploaded_data <- renderUI({
       fluidRow(
@@ -290,7 +290,6 @@ server <- function(input, output, session) {
       )
     })
   })
-
 
 
   ## Individual reactive ####
